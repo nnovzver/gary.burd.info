@@ -23,6 +23,8 @@ func newHub() *hub {
 	}
 }
 
+var Hub *hub = newHub()
+
 func (h *hub) run() {
 	for {
 		select {

@@ -30,10 +30,9 @@ func homeHandler(c http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 	homeTempl = template.Must(template.ParseFiles(filepath.Join(*assets, "home.html")))
-	h := newHub()
-	go h.run()
+	go Hub.run()
 	http.HandleFunc("/", homeHandler)
-	http.Handle("/ws", wsHandler{h: h})
+	http.HandleFunc("/ws", connHandler)
 	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}

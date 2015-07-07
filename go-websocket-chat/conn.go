@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gorilla/websocket"
+	"golang.org/x/net/websocket"
 	"net/http"
 )
 
@@ -11,25 +11,23 @@ type connection struct {
 
 	// Buffered channel of outbound messages.
 	send chan []byte
-
-	// The hub.
-	h *hub
 }
 
 func (c *connection) reader() {
 	for {
-		_, message, err := c.ws.ReadMessage()
+		message := make([]byte, 1024)
+		n, err := c.ws.Read(message)
 		if err != nil {
 			break
 		}
-		c.h.broadcast <- message
+		Hub.broadcast <- message[:n]
 	}
 	c.ws.Close()
 }
 
 func (c *connection) writer() {
 	for message := range c.send {
-		err := c.ws.WriteMessage(websocket.TextMessage, message)
+		_, err := c.ws.Write(message)
 		if err != nil {
 			break
 		}
@@ -37,20 +35,15 @@ func (c *connection) writer() {
 	c.ws.Close()
 }
 
-var upgrader = &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
-
-type wsHandler struct {
-	h *hub
-}
-
-func (wsh wsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	c := &connection{send: make(chan []byte, 256), ws: ws, h: wsh.h}
-	c.h.register <- c
-	defer func() { c.h.unregister <- c }()
+func wsHandler(ws *websocket.Conn) {
+	c := &connection{send: make(chan []byte, 256), ws: ws}
+	Hub.register <- c
+	defer func() { Hub.unregister <- c }()
 	go c.writer()
 	c.reader()
+}
+
+func connHandler(w http.ResponseWriter, r *http.Request) {
+	s := websocket.Server{Handler: wsHandler}
+	s.ServeHTTP(w, r)
 }
